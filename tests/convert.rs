@@ -232,6 +232,96 @@ fn convert_refuses_to_overwrite_a_hand_edited_sibling() {
     );
 }
 
+// RFC-0029 / KCP 0.31: action_scope gains an OPTIONAL negative sibling `deny` with the
+// same shape as the allowlist — { tools?, paths?, capabilities? }. A requested
+// tool/path/capability that matches `deny` is refused, and that refusal OVERRIDES any
+// allow (deny-overrides, fail-closed). A downstream KCP consumer enforces this at run
+// time; forge's job is to author it faithfully into the governed sibling.
+const SKILL_WITH_DENY: &str = "name: locked-runbook\ndescription: a governed procedure with a negative scope\ntools:\n  - kcp-sign\n  - git\n  - shell\ndeny:\n  tools:\n    - shell\n  paths:\n    - \"secrets/**\"\ninstructions: |\n  do the thing\n";
+
+#[test]
+fn convert_emits_action_scope_deny() {
+    let dir = TempDir::new().unwrap();
+    write(&dir, "locked-runbook.yaml", SKILL_WITH_DENY);
+    forge()
+        .arg("convert")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let sibling = dir.path().join("locked-runbook.kcp.yaml");
+    let unit: serde_yaml::Value =
+        serde_yaml::from_str(&fs::read_to_string(&sibling).unwrap()).unwrap();
+
+    // The allowlist is still authored, unchanged.
+    assert_eq!(unit["action_scope"]["tools"][0], "kcp-sign");
+
+    // RFC-0029: the negative sibling is emitted with the SAME shape as the allowlist.
+    assert_eq!(unit["action_scope"]["deny"]["tools"][0], "shell");
+    assert_eq!(unit["action_scope"]["deny"]["paths"][0], "secrets/**");
+
+    // deny-overrides-allow: `shell` is listed in BOTH allow and deny. The authored
+    // artifact must carry it under `deny` so a deny-first enforcer refuses the
+    // otherwise-allowed tool.
+    let deny_tools: Vec<&str> = unit["action_scope"]["deny"]["tools"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(
+        deny_tools.contains(&"shell"),
+        "deny must carry the refused tool that allow also lists (deny-overrides)"
+    );
+}
+
+#[test]
+fn convert_omits_deny_when_source_has_none() {
+    // An absent or empty deny is a no-op (§RFC-0029): no `deny` key is written, so the
+    // allow-only sibling is byte-for-byte what it was before this feature.
+    let dir = TempDir::new().unwrap();
+    write(
+        &dir,
+        "plain.yaml",
+        "name: plain\ndescription: allow only, no deny\ntools:\n  - git\ninstructions: |\n  x\n",
+    );
+    forge()
+        .arg("convert")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success();
+    let unit: serde_yaml::Value =
+        serde_yaml::from_str(&fs::read_to_string(dir.path().join("plain.kcp.yaml")).unwrap())
+            .unwrap();
+    assert_eq!(unit["action_scope"]["tools"][0], "git");
+    assert!(
+        unit["action_scope"]["deny"].is_null(),
+        "no deny declared → no deny emitted (empty deny is a no-op)"
+    );
+}
+
+#[test]
+fn convert_warns_on_self_nullifying_deny() {
+    // A deny that fully contains its own allow for a dimension nullifies the scope:
+    // every allowed tool is also denied (deny-overrides), so the skill can touch nothing
+    // on that axis. The validator SHOULD warn — but must not fail the run.
+    let dir = TempDir::new().unwrap();
+    write(
+        &dir,
+        "dead-runbook.yaml",
+        "name: dead-runbook\ndescription: allow equals deny, nothing is permitted\ntools:\n  - git\n  - shell\ndeny:\n  tools:\n    - git\n    - shell\ninstructions: |\n  x\n",
+    );
+    forge()
+        .arg("convert")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("self-nullifying"));
+}
+
 #[test]
 fn drift_json_is_machine_readable() {
     let dir = TempDir::new().unwrap();

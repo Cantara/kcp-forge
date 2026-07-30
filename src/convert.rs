@@ -15,6 +15,7 @@ use crate::report::Report;
 use crate::validate::is_manifest;
 use serde_yaml::{Mapping, Value};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -118,9 +119,19 @@ fn governed_unit(src: &Source) -> Mapping {
 
     // Only declare an action_scope the source itself states. An invented allowlist
     // that is too narrow blocks real work while looking rigorous.
+    let mut scope = Mapping::new();
     if let Some(Value::Sequence(tools)) = src.doc.get(Value::from("tools")) {
-        let mut scope = Mapping::new();
         scope.insert("tools".into(), Value::Sequence(tools.clone()));
+    }
+    // RFC-0029 / KCP 0.31: the OPTIONAL negative sibling. Same shape as the allowlist —
+    // { tools?, paths?, capabilities? }. A token matching `deny` is refused, and that
+    // refusal OVERRIDES any allow (deny-overrides, fail-closed). An absent or empty deny
+    // is a no-op, so it is never written. Only what the source itself states, as with
+    // the allowlist above.
+    if let Some(deny) = deny_scope(&src.doc) {
+        scope.insert("deny".into(), Value::Mapping(deny));
+    }
+    if !scope.is_empty() {
         unit.insert("action_scope".into(), Value::Mapping(scope));
     }
 
@@ -136,6 +147,66 @@ fn governed_unit(src: &Source) -> Mapping {
     unit.insert("x-forge".into(), Value::Mapping(forge));
 
     unit
+}
+
+/// The three axes an action_scope bounds (§4.3a): tool names, filesystem paths, named
+/// capabilities. `deny` mirrors this shape exactly.
+const SCOPE_DIMENSIONS: &[&str] = &["tools", "paths", "capabilities"];
+
+/// Read the source's OPTIONAL `deny` declaration into an `action_scope.deny` mapping.
+/// RFC-0029: same shape as the allowlist — { tools?, paths?, capabilities? }. Only the
+/// dimensions the source actually states are carried; an empty list is dropped. An
+/// absent or wholly-empty deny is a no-op and yields `None`, so a no-op sibling is never
+/// emitted (matches the spec's "an empty deny object is a no-op").
+fn deny_scope(doc: &Mapping) -> Option<Mapping> {
+    let Some(Value::Mapping(src_deny)) = doc.get(Value::from("deny")) else {
+        return None;
+    };
+    let mut deny = Mapping::new();
+    for dim in SCOPE_DIMENSIONS {
+        if let Some(Value::Sequence(items)) = src_deny.get(Value::from(*dim))
+            && !items.is_empty()
+        {
+            deny.insert((*dim).into(), Value::Sequence(items.clone()));
+        }
+    }
+    if deny.is_empty() { None } else { Some(deny) }
+}
+
+/// The set of string tokens declared for one scope axis; non-strings and absent axes
+/// yield the empty set.
+fn token_set(value: Option<&Value>) -> BTreeSet<String> {
+    match value {
+        Some(Value::Sequence(items)) => items
+            .iter()
+            .filter_map(|i| i.as_str().map(String::from))
+            .collect(),
+        _ => BTreeSet::new(),
+    }
+}
+
+/// RFC-0029 self-nullifying check. Returns the dimensions where `deny` FULLY CONTAINS
+/// the allow set — every allowed token is also refused (deny-overrides), so the skill
+/// can touch nothing on that axis and the grant is dead on arrival. An empty allow (there
+/// is nothing to nullify) is never a hit. Advisory: a validator SHOULD warn, never fail.
+///
+/// Containment is over the declared tokens verbatim. That is exact for `tools`/
+/// `capabilities`; for `paths` (globs) it catches the identical-glob case an author is
+/// most likely to write by mistake without claiming to resolve glob subsumption, which
+/// only a runtime enforcer can decide.
+fn self_nullifying_dims(scope: &Mapping) -> Vec<&'static str> {
+    let Some(Value::Mapping(deny)) = scope.get(Value::from("deny")) else {
+        return Vec::new();
+    };
+    let mut hits = Vec::new();
+    for dim in SCOPE_DIMENSIONS {
+        let allow = token_set(scope.get(Value::from(*dim)));
+        let refused = token_set(deny.get(Value::from(*dim)));
+        if !allow.is_empty() && allow.is_subset(&refused) {
+            hits.push(*dim);
+        }
+    }
+    hits
 }
 
 fn render_sibling(unit: &Mapping) -> String {
@@ -177,6 +248,19 @@ pub fn run_convert(paths: &[PathBuf], json: bool, apply: bool) -> anyhow::Result
         let sib = sibling_path(&src.path);
         let unit = governed_unit(src);
         let rendered = render_sibling(&unit);
+
+        // RFC-0029: a deny that fully contains its own allow nullifies the scope. Warn —
+        // the sibling is still authored (SHOULD warn, never fail), but the author almost
+        // certainly did not intend a procedure permitted to touch nothing.
+        if let Some(Value::Mapping(scope)) = unit.get(Value::from("action_scope")) {
+            for dim in self_nullifying_dims(scope) {
+                report.note(
+                    "self-nullifying",
+                    &display(&sib),
+                    format!("action_scope.deny fully contains allow `{dim}`; the skill can touch no {dim} (deny-overrides)"),
+                );
+            }
+        }
 
         let existing = fs::read_to_string(&sib).ok();
         match existing {
