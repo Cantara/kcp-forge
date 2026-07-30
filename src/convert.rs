@@ -22,9 +22,9 @@ use std::path::{Path, PathBuf};
 /// even when its content hash still matches — the 0.7-freeze failure mode.
 pub const TARGET_KCP_VERSION: &str = "0.30";
 
-const INTEGRITY_PREFIX: &str = "# forge-integrity: sha256:";
+pub const INTEGRITY_PREFIX: &str = "# forge-integrity: sha256:";
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub fn sha256_hex(bytes: &[u8]) -> String {
     // sha2 0.11 dropped LowerHex on the digest output; byte-wise formatting works on
     // both 0.10 and 0.11.
     Sha256::digest(bytes)
@@ -59,6 +59,12 @@ fn sources(paths: &[PathBuf]) -> Vec<Source> {
                 _ => return None,
             };
             if is_manifest(&doc) {
+                return None;
+            }
+            // A file declaring a `steps` list is a playbook spec (§4.3b), authored by
+            // `author-playbook` into a governed manifest — never a `kind: skill` source.
+            // Without this a spec would be mis-derived into a skill sibling.
+            if matches!(doc.get(Value::from("steps")), Some(Value::Sequence(_))) {
                 return None;
             }
             let has = |k: &str| {
@@ -147,7 +153,7 @@ fn render_sibling(unit: &Mapping) -> String {
 
 /// Is an existing sibling byte-identical to what forge last wrote? The final line is a
 /// hash of everything before it; any mismatch — or anything after it — is a hand edit.
-fn pristine(existing: &str) -> bool {
+pub fn pristine(existing: &str) -> bool {
     let Some(marker_start) = existing.rfind(INTEGRITY_PREFIX) else {
         return false;
     };

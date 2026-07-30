@@ -9,10 +9,20 @@ it plans over honest: parseable, consistently named, cross-referenced, converted
 **visibly drifting when it drifts**.
 
 ```
-kcp-forge validate  [--json] [--fix-names] [PATH...]   # corpus structural integrity
-kcp-forge convert   [--json] [--apply]     [PATH...]   # skill file → governed KCP unit
-kcp-forge drift     [--json]               [PATH...]   # converted vs. source: what moved
+kcp-forge validate        [--json] [--fix-names] [PATH...]   # corpus structural integrity
+kcp-forge convert         [--json] [--apply]     [PATH...]   # skill file → governed KCP unit
+kcp-forge drift           [--json]               [PATH...]   # converted vs. source: what moved
+kcp-forge author-playbook [--json] [--apply]     [PATH...]   # spec → governed kind: playbook manifest
 ```
+
+`author-playbook` is `convert`'s counterpart for the `kind: playbook` composition
+(SPEC §4.3b). Point it at a spec — any YAML file declaring a `steps:` list — and it
+assembles a whole manifest: one `kind: skill` unit per step plus the `kind: playbook`
+unit that composes them, carrying the §3.13 authority model (per-step `authority_level`,
+a playbook-level ceiling, a multi-source `grant_ceiling`) and each step's §4.3a
+`action_scope`. Every artifact is validated against the **real** KCP schema
+(`schema/knowledge-schema.json`, vendored verbatim — see `schema/PROVENANCE.txt`) before
+it is written: a playbook that would not conform is refused, never emitted.
 
 Exit codes are the contract: **0** clean · **1** findings · **2** tool error.
 Don't pipe through anything that swallows them — `kcp-forge validate | tail` exits with

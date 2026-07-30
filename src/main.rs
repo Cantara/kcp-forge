@@ -9,7 +9,9 @@ use std::process::ExitCode;
 
 mod convert;
 mod corpus;
+mod playbook;
 mod report;
+mod schema;
 mod validate;
 
 #[derive(Parser)]
@@ -47,6 +49,16 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Assemble a governed `kind: playbook` manifest from a spec (a YAML file declaring
+    /// `steps:`); validated against the real KCP schema before writing
+    AuthorPlaybook {
+        paths: Vec<std::path::PathBuf>,
+        #[arg(long)]
+        json: bool,
+        /// Write the manifest (default: dry-run, show what would be written)
+        #[arg(long)]
+        apply: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -59,6 +71,7 @@ fn main() -> ExitCode {
         } => validate::run(&paths, json, fix_names),
         Command::Convert { paths, json, apply } => convert::run_convert(&paths, json, apply),
         Command::Drift { paths, json } => convert::run_drift(&paths, json),
+        Command::AuthorPlaybook { paths, json, apply } => playbook::run(&paths, json, apply),
     };
     match result {
         Ok(clean) => {
