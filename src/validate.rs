@@ -90,13 +90,14 @@ pub fn run(paths: &[PathBuf], json: bool, fix_names: bool) -> anyhow::Result<boo
         if corpus::is_sibling(path) {
             // Derived artifacts: only their YAML validity is this command's business.
             if let Ok(raw) = fs::read_to_string(path)
-                && serde_yaml::from_str::<Value>(&raw).is_err() {
-                    report.problem(
-                        "invalid-yaml",
-                        &display(path),
-                        "derived sibling does not parse",
-                    );
-                }
+                && serde_yaml::from_str::<Value>(&raw).is_err()
+            {
+                report.problem(
+                    "invalid-yaml",
+                    &display(path),
+                    "derived sibling does not parse",
+                );
+            }
             continue;
         }
         let raw = match fs::read_to_string(path) {
@@ -141,17 +142,18 @@ pub fn run(paths: &[PathBuf], json: bool, fix_names: bool) -> anyhow::Result<boo
         }
 
         if let Some(Value::String(declared)) = doc.get(Value::from("name"))
-            && declared != &file_stem {
-                if fix_names && rewrite_name(path, declared, &file_stem)? {
-                    report.note("name-fixed", &file, format!("{declared} -> {file_stem}"));
-                } else {
-                    report.problem(
-                        "name-mismatch",
-                        &file,
-                        format!("declares name={declared:?}, file says {file_stem:?}"),
-                    );
-                }
+            && declared != &file_stem
+        {
+            if fix_names && rewrite_name(path, declared, &file_stem)? {
+                report.note("name-fixed", &file, format!("{declared} -> {file_stem}"));
+            } else {
+                report.problem(
+                    "name-mismatch",
+                    &file,
+                    format!("declares name={declared:?}, file says {file_stem:?}"),
+                );
             }
+        }
 
         let keys: BTreeSet<&str> = doc.keys().filter_map(|k| k.as_str()).collect();
         let non_meta: Vec<&str> = keys
@@ -175,13 +177,14 @@ pub fn run(paths: &[PathBuf], json: bool, fix_names: bool) -> anyhow::Result<boo
         if let Some(Value::Sequence(refs)) = doc.get(Value::from("see_also")) {
             for r in refs {
                 if let Some(target) = r.as_str()
-                    && !known.contains(target) {
-                        report.problem(
-                            "dangling-ref",
-                            &display(path),
-                            format!("see_also: {target} (no such skill)"),
-                        );
-                    }
+                    && !known.contains(target)
+                {
+                    report.problem(
+                        "dangling-ref",
+                        &display(path),
+                        format!("see_also: {target} (no such skill)"),
+                    );
+                }
             }
         }
     }
