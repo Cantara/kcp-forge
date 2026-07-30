@@ -1,0 +1,18 @@
+knowledge-schema.json — vendored, verbatim
+===========================================
+
+Source repository : https://github.com/Cantara/knowledge-context-protocol
+Source path        : schema/knowledge-schema.json
+Source revision    : 5a6e0f4faf0ea89d2e83c988bfc2350e678b58de
+KCP spec version   : 0.30
+sha256             : ad894f5251664ae2d5e736c8376515e248d8af05494471cecba7123bd1049970
+
+This file is the real KCP manifest JSON Schema, copied byte-for-byte from the
+knowledge-context-protocol repo. kcp-forge embeds it (see src/schema.rs,
+include_str!) so `author-playbook` validates every artifact it assembles against
+the actual schema — not a hand-rolled, divergent copy — while the binary stays a
+single self-contained static artifact with no network dependency.
+
+To refresh: copy the upstream file over this one and update the revision, spec
+version, and sha256 above. Never hand-edit the schema here to make an artifact
+pass; fix the artifact, or upstream the schema change first.

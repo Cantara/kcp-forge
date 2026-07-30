@@ -1,0 +1,1276 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cantara.github.io/knowledge-context-protocol/schema/knowledge-schema.json",
+  "title": "Knowledge Context Protocol Manifest",
+  "description": "Schema for knowledge.yaml — a KCP manifest describing the knowledge units in a project. See https://github.com/Cantara/knowledge-context-protocol/blob/main/SPEC.md",
+  "type": "object",
+  "required": ["project", "units"],
+  "additionalProperties": true,
+  "properties": {
+    "kcp_version": {
+      "type": "string",
+      "description": "Version of the KCP specification this manifest conforms to. RECOMMENDED. Current value: \"0.30\". Prior drafts \"0.1\" through \"0.14\", \"0.16\" through \"0.28\" are also accepted for backward compatibility (\"0.15\" was never a spec version).",
+      "enum": ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "0.10", "0.11", "0.12", "0.13", "0.14", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22", "0.23", "0.24", "0.25", "0.26", "0.27", "0.28", "0.29", "0.30"]
+    },
+    "project": {
+      "type": "string",
+      "description": "Human-readable name of the project or documentation site. REQUIRED.",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver version of this manifest. Increment when units are added or removed. RECOMMENDED.",
+      "pattern": "^[0-9]"
+    },
+    "updated": {
+      "type": "string",
+      "description": "ISO 8601 date (YYYY-MM-DD) when this manifest was last modified. RECOMMENDED. Quote the value in YAML.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "language": {
+      "type": "string",
+      "description": "BCP 47 language tag as default for all units. OPTIONAL. Example: \"en\", \"no\", \"de\".",
+      "minLength": 2,
+      "maxLength": 35
+    },
+    "license": {
+      "description": "Default license for all units. OPTIONAL. Either an SPDX identifier string or a structured object.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "SPDX license identifier (shorthand form).",
+          "minLength": 1
+        },
+        { "$ref": "#/definitions/license_object" }
+      ]
+    },
+    "indexing": {
+      "description": "Default AI crawling and indexing permissions for all units. OPTIONAL.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Shorthand: open, read-only, no-train, or none.",
+          "enum": ["open", "read-only", "no-train", "none"]
+        },
+        { "$ref": "#/definitions/indexing_object" }
+      ]
+    },
+    "hints": { "$ref": "#/definitions/root_hints" },
+    "trust": {
+      "type": "object",
+      "description": "Publisher provenance and audit requirements for this manifest. OPTIONAL. See SPEC.md §3.2.",
+      "additionalProperties": true,
+      "properties": {
+        "provenance": { "$ref": "#/definitions/trust_provenance" },
+        "audit": { "$ref": "#/definitions/trust_audit" },
+        "agent_requirements": { "$ref": "#/definitions/trust_agent_requirements" }
+      }
+    },
+    "auth": { "$ref": "#/definitions/auth_object" },
+    "delegation": { "$ref": "#/definitions/delegation_object" },
+    "compliance": { "$ref": "#/definitions/compliance_object" },
+    "payment": { "$ref": "#/definitions/payment_object" },
+    "rate_limits": { "$ref": "#/definitions/rate_limits_object" },
+    "serving": { "$ref": "#/definitions/serving_object" },
+    "authority_level_scale": {
+      "type": "array",
+      "description": "Fixed, total-ordered ordinal authority scale (v0.27). Recommended: [observe, explain, suggest, prepare, commit]. Not per-manifest extensible — grant_ceiling's minimum computation requires a shared total order across sources. See SPEC.md §3.13.",
+      "items": { "type": "string" }
+    },
+    "task_types": {
+      "type": "array",
+      "description": "Task-type declarations, each an id-keyed authority_level ceiling (v0.27). See SPEC.md §3.13.",
+      "items": { "$ref": "#/definitions/task_type" }
+    },
+    "agents": {
+      "type": "array",
+      "description": "Agent declarations (Capability Profiles), each an id-keyed authority_level ceiling (v0.27). See SPEC.md §3.13.",
+      "items": { "$ref": "#/definitions/agent" }
+    },
+    "grant_ceiling": { "$ref": "#/definitions/grant_ceiling_object" },
+    "units": {
+      "type": "array",
+      "description": "Ordered list of knowledge unit declarations. REQUIRED. Must contain at least one unit.",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/unit" }
+    },
+    "relationships": {
+      "type": "array",
+      "description": "Explicit cross-unit relationship declarations. OPTIONAL.",
+      "items": { "$ref": "#/definitions/relationship" }
+    },
+    "manifests": {
+      "type": "array",
+      "description": "Federation declarations — external KCP manifests this manifest has a relationship with. OPTIONAL. See SPEC.md §3.6.",
+      "items": { "$ref": "#/definitions/manifest_ref" }
+    },
+    "external_relationships": {
+      "type": "array",
+      "description": "Explicit typed relationships between units across manifest boundaries. OPTIONAL. See SPEC.md §3.6.",
+      "items": { "$ref": "#/definitions/external_relationship" }
+    },
+    "visibility": { "$ref": "#/definitions/visibility_object" },
+    "authority": { "$ref": "#/definitions/authority_object" },
+    "discovery": { "$ref": "#/definitions/discovery_object" },
+    "not_for": {
+      "type": "array",
+      "description": "Manifest-level negative-space declarations: purposes or audiences this knowledge is explicitly NOT for. OPTIONAL. See RFC-0015 (v0.17).",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "license_object": {
+      "type": "object",
+      "description": "Structured license metadata.",
+      "additionalProperties": true,
+      "properties": {
+        "spdx": {
+          "type": "string",
+          "description": "SPDX license identifier. Use LicenseRef-Proprietary for custom licenses.",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the full license text."
+        },
+        "attribution_required": {
+          "type": "boolean",
+          "description": "Whether the agent must cite the source when reproducing content. Default: false."
+        }
+      }
+    },
+    "indexing_object": {
+      "type": "object",
+      "description": "Structured AI crawling and indexing permissions.",
+      "additionalProperties": true,
+      "properties": {
+        "allow": {
+          "type": "array",
+          "description": "Operations that agents MAY perform. Values: read, index, reproduce-in-response, train, cache-permanently, share-externally, summarise.",
+          "items": { "type": "string" }
+        },
+        "deny": {
+          "type": "array",
+          "description": "Operations that agents MUST NOT perform. Values: read, index, reproduce-in-response, train, cache-permanently, share-externally, summarise.",
+          "items": { "type": "string" }
+        },
+        "attribution_required": {
+          "type": "boolean",
+          "description": "Whether reproduction requires citing the source. Default: false."
+        }
+      }
+    },
+    "unit": {
+      "type": "object",
+      "description": "A self-contained piece of knowledge in the manifest.",
+      "required": ["id", "path", "intent", "scope", "audience"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier within this manifest. Lowercase ASCII letters (a-z), digits (0-9), hyphens (-), and dots (.) only.",
+          "pattern": "^[a-z0-9.\\-]+$",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "description": "Additional identifiers that resolve to this unit (v0.26). Each MUST match the id character rules and be unique across all ids and aliases in the manifest. See SPEC.md §4.2a.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          }
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path from the manifest file's location to the content file.",
+          "minLength": 1,
+          "not": {
+            "pattern": "^/"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "Type of artifact. Default: knowledge. Values: knowledge (documentation), schema (machine-readable definition), service (callable endpoint), policy (authoritative rules), executable (runnable artifact), skill (governed executable procedure whose selection is gated like knowledge; declares an action_scope), playbook (ordered composition of units, governed per step).  See SPEC.md §4.3a.",
+          "enum": ["knowledge", "schema", "service", "policy", "executable", "skill", "playbook"],
+          "default": "knowledge"
+        },
+        "load_eligible": {
+          "type": "boolean",
+          "description": "RFC-0028 (v0.30): the explicit eligibility grant §16.3 C4 requires. Defined only for kind: skill and kind: playbook. Absent means NOT eligible — a governed procedure fails closed and renders as a pointer. A grant, not a capability claim: it does not widen action_scope or raise authority_level."
+        },
+        "steps": {
+          "type": "array",
+          "description": "Ordered composition a kind: playbook declares. REQUIRED and non-empty for kind: playbook. See SPEC.md §4.3b.",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "anyOf": [{"required": ["uses"]}, {"required": ["action"]}],
+            "properties": {
+              "id": {"type": "string", "description": "Unique within the playbook."},
+              "uses": {"type": "string", "description": "Unit id this step enacts; SHOULD name a kind: skill unit. MUST resolve to a declared unit, and MUST NOT name another playbook."},
+              "action": {"type": "string", "description": "Inline description, when no unit exists yet. An inline step has no action_scope and is bounded only by its authority_level."},
+              "depends_on": {"type": "array", "items": {"type": "string"}, "description": "Step ids that must complete successfully first. The graph MUST be acyclic. Absent means the preceding step in declaration order."},
+              "authority_level": {"type": "string", "description": "§3.13 scale. Ceiling semantics: at most this level."},
+              "escalation": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}], "description": "§3.14 trigger(s), evaluated before enactment. Disjunctive: any one firing suspends the step."},
+              "success_condition": {"type": "string", "description": "Prose assertion. The protocol defines no evaluation mechanism; outcomes are confirmed | not_confirmed | not_evaluated."},
+              "on_failure": {"enum": ["abort", "continue", "escalate"], "description": "Default abort. 'continue' continues the run but does NOT permit dependent steps to proceed."},
+              "timeout": {"type": "string", "description": "ISO 8601 duration. Elapsing constitutes failure; the clock pauses while a step is suspended awaiting a grant."}
+            }
+          }
+        },
+        "action_scope": {
+          "type": "object",
+          "description": "The tools, paths, capabilities, and spend a procedure or skill is permitted to touch (v0.26). Advisory declaration surfaced to agents and used for conformance checking of a kind: skill unit. All sub-fields OPTIONAL. See SPEC.md §4.3a.",
+          "properties": {
+            "tools": {
+              "type": "array",
+              "description": "Tool names the procedure may invoke.",
+              "items": { "type": "string" }
+            },
+            "paths": {
+              "type": "array",
+              "description": "File-system paths (globs permitted) the procedure may read or write.",
+              "items": { "type": "string" }
+            },
+            "capabilities": {
+              "type": "array",
+              "description": "Named capabilities the procedure requires or exercises.",
+              "items": { "type": "string" }
+            },
+            "spend": {
+              "type": "object",
+              "description": "Purchases the procedure may make. Governs the buy decision fail-closed; where the caller maintains a cumulative session budget the effective limit is the lower of the two. That session budget is supplied at run time and is not a manifest field. All sub-fields OPTIONAL. See SPEC.md §4.3a.1.",
+              "properties": {
+                "max_spend": {
+                  "type": "number",
+                  "description": "Per-purchase spend cap, in units of 'currency'. A purchase exceeding this is held."
+                },
+                "allowed_vendors": {
+                  "type": "array",
+                  "description": "Allowlist of vendor/payee identifiers the procedure may pay. A purchase to an unlisted vendor is held.",
+                  "items": { "type": "string" }
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 code (USD, EUR) or crypto ticker (USDC, ETH) that 'max_spend' is denominated in."
+                }
+              }
+            }
+          }
+        },
+        "intent": {
+          "type": "string",
+          "description": "One sentence describing the question this unit answers or the task it enables.",
+          "minLength": 1
+        },
+        "format": {
+          "type": "string",
+          "description": "Content format of the referenced file. Values: markdown, pdf, openapi, json-schema, jupyter, html, asciidoc, rst, vtt, yaml, json, csv, text. Unknown values are silently ignored."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "Full MIME type for precise format identification. Takes precedence over format when both are present."
+        },
+        "language": {
+          "type": "string",
+          "description": "BCP 47 language tag for this unit's content. Overrides root-level language.",
+          "minLength": 2,
+          "maxLength": 35
+        },
+        "scope": {
+          "type": "string",
+          "description": "Breadth of applicability: global, project, or module.",
+          "enum": ["global", "project", "module"]
+        },
+        "audience": {
+          "type": "array",
+          "description": "Who this unit is for. One or more of: human, agent, developer, architect, operator, devops.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0
+        },
+        "license": {
+          "description": "License and usage rights for this unit. Overrides root-level license.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "SPDX license identifier (shorthand form).",
+              "minLength": 1
+            },
+            { "$ref": "#/definitions/license_object" }
+          ]
+        },
+        "validated": {
+          "type": "string",
+          "description": "ISO 8601 date when a human last confirmed the content was accurate. RECOMMENDED.",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "update_frequency": {
+          "type": "string",
+          "description": "How often this content typically changes. Values: hourly, daily, weekly, monthly, rarely, never.",
+          "enum": ["hourly", "daily", "weekly", "monthly", "rarely", "never"]
+        },
+        "indexing": {
+          "description": "AI crawling and indexing permissions for this unit. Overrides root-level indexing.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Shorthand: open, read-only, no-train, or none.",
+              "enum": ["open", "read-only", "no-train", "none"]
+            },
+            { "$ref": "#/definitions/indexing_object" }
+          ]
+        },
+        "depends_on": {
+          "type": "array",
+          "description": "IDs of units that should be loaded before this one.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9.\\-]+$"
+          }
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "ID of the unit this replaces.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "triggers": {
+          "type": "array",
+          "description": "Keywords or short phrases indicating when this unit is relevant. Max 20 items, each max 60 characters.",
+          "items": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "maxItems": 20
+        },
+        "hints": { "$ref": "#/definitions/unit_hints" },
+        "access": {
+          "type": "string",
+          "description": "Who can fetch this unit's content. Advisory signal. Values: public (default), authenticated, restricted. See SPEC.md §4.11.",
+          "enum": ["public", "authenticated", "restricted"]
+        },
+        "auth_scope": {
+          "type": "string",
+          "description": "Opaque scope token required to access this unit. Interpretation is defined by the publisher, not by KCP. Only meaningful when access is authenticated or restricted. See SPEC.md §4.11.",
+          "minLength": 1
+        },
+        "sensitivity": {
+          "type": "string",
+          "description": "Information classification level. Values: public, internal, confidential, restricted. See SPEC.md §4.12.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "If true, this unit is present but should not be used for new development. Agents SHOULD prefer non-deprecated alternatives. See SPEC.md §4.13.",
+          "default": false
+        },
+        "delegation": { "$ref": "#/definitions/delegation_object" },
+        "compliance": { "$ref": "#/definitions/compliance_object" },
+        "auth": { "$ref": "#/definitions/auth_object" },
+        "payment": { "$ref": "#/definitions/payment_object" },
+        "rate_limits": { "$ref": "#/definitions/rate_limits_object" },
+        "external_depends_on": {
+          "type": "array",
+          "description": "Cross-manifest dependencies for this unit. OPTIONAL. See SPEC.md §3.6.",
+          "items": { "$ref": "#/definitions/external_dependency" }
+        },
+        "visibility": { "$ref": "#/definitions/visibility_object" },
+        "authority": { "$ref": "#/definitions/authority_object" },
+        "discovery": { "$ref": "#/definitions/discovery_object" },
+        "not_for": {
+          "type": "array",
+          "description": "Negative-space declarations: purposes or audiences this unit is explicitly NOT for. OPTIONAL. See RFC-0015 (v0.17).",
+          "items": { "type": "string" }
+        },
+        "not_for_strict": {
+          "type": "boolean",
+          "description": "If true, the not_for declarations are normative exclusions rather than advisory hints. Default: false. Only meaningful alongside not_for. See RFC-0015 (v0.17).",
+          "default": false
+        },
+        "content_structure": { "$ref": "#/definitions/content_structure_object" },
+        "authority_level": {
+          "type": "string",
+          "description": "Ceiling on the manifest's root authority_level_scale (v0.27). Consumable as a grant_ceiling source via unit_ref. See SPEC.md §4.23/§3.13."
+        }
+      }
+    },
+    "content_structure_object": {
+      "type": "object",
+      "description": "Structural description of a unit's content. All fields optional and advisory. Unknown vocabulary values SHOULD warn but MUST pass through (forward-compat). See RFC-0016 (v0.17).",
+      "additionalProperties": true,
+      "properties": {
+        "primary": {
+          "type": "string",
+          "description": "The dominant content modality. Values: prose, table, code, list, diagram, reference, mixed.",
+          "enum": ["prose", "table", "code", "list", "diagram", "reference", "mixed"]
+        },
+        "contains": {
+          "type": "array",
+          "description": "Additional content modalities present in the unit. Values: prose, table, code, list, diagram, reference, mixed.",
+          "items": {
+            "type": "string",
+            "enum": ["prose", "table", "code", "list", "diagram", "reference", "mixed"]
+          }
+        },
+        "density": {
+          "type": "string",
+          "description": "Information density classification. Values: sparse, normal, dense.",
+          "enum": ["sparse", "normal", "dense"]
+        }
+      }
+    },
+    "unit_hints": {
+      "type": "object",
+      "description": "Advisory context window hints for a knowledge unit. All fields are optional. Unknown fields MUST be silently ignored.",
+      "additionalProperties": true,
+      "properties": {
+        "token_estimate": {
+          "type": "integer",
+          "description": "Approximate token count for a typical LLM tokenizer. Advisory.",
+          "minimum": 0
+        },
+        "token_estimate_method": {
+          "type": "string",
+          "description": "How the estimate was produced: measured (actual tokenizer run) or estimated (heuristic). Default: estimated.",
+          "enum": ["measured", "estimated"]
+        },
+        "size_bytes": {
+          "type": "integer",
+          "description": "Raw file size in bytes. Model-agnostic.",
+          "minimum": 0
+        },
+        "load_strategy": {
+          "type": "string",
+          "description": "When to load this unit: eager (immediately), lazy (on demand, default), never (only if explicitly requested).",
+          "enum": ["eager", "lazy", "never"]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Eviction priority when context budget is tight: critical (evict last), supplementary (default), reference (evict first).",
+          "enum": ["critical", "supplementary", "reference"]
+        },
+        "density": {
+          "type": "string",
+          "description": "Information-to-token ratio: dense (every sentence load-bearing), standard (default), verbose (summarisation worthwhile).",
+          "enum": ["dense", "standard", "verbose"]
+        },
+        "summary_available": {
+          "type": "boolean",
+          "description": "A shorter summary of this unit exists in this manifest. summary_unit SHOULD be declared when true."
+        },
+        "summary_unit": {
+          "type": "string",
+          "description": "Unit id of the shorter summary. Required when summary_available is true.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "summary_of": {
+          "type": "string",
+          "description": "Unit id that this unit summarises. Declared on the summary side of the relationship.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "partial_load_supported": {
+          "type": "boolean",
+          "description": "Whether the content source supports partial or range requests. Default: false."
+        },
+        "chunked": {
+          "type": "boolean",
+          "description": "This unit has been split into sequential chunks. chunk_count SHOULD be declared alongside."
+        },
+        "chunk_count": {
+          "type": "integer",
+          "description": "Total number of chunks this unit is split into.",
+          "minimum": 1
+        },
+        "chunk_of": {
+          "type": "string",
+          "description": "Unit id of the parent this chunk belongs to.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "chunk_index": {
+          "type": "integer",
+          "description": "1-based position of this chunk within the parent sequence.",
+          "minimum": 1
+        },
+        "total_chunks": {
+          "type": "integer",
+          "description": "Total chunks in the parent. Mirrors chunk_count on the parent.",
+          "minimum": 1
+        },
+        "chunk_topic": {
+          "type": "string",
+          "description": "Short phrase describing what this chunk covers.",
+          "maxLength": 120
+        }
+      }
+    },
+    "root_hints": {
+      "type": "object",
+      "description": "Manifest-level aggregate context hints. All fields are advisory. Unknown fields MUST be silently ignored.",
+      "additionalProperties": true,
+      "properties": {
+        "total_token_estimate": {
+          "type": "integer",
+          "description": "Advisory sum of all unit token_estimate values. Should be recomputed by tooling, not maintained by hand.",
+          "minimum": 0
+        },
+        "unit_count": {
+          "type": "integer",
+          "description": "Total number of units declared in this manifest.",
+          "minimum": 0
+        },
+        "recommended_entry_point": {
+          "type": "string",
+          "description": "Unit id the publisher recommends loading first.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "has_summaries": {
+          "type": "boolean",
+          "description": "At least one unit in this manifest has summary_available: true."
+        },
+        "has_chunks": {
+          "type": "boolean",
+          "description": "At least one unit in this manifest has chunked: true."
+        }
+      }
+    },
+    "trust_provenance": {
+      "type": "object",
+      "description": "Publisher identity fields within the trust block. All fields are optional and advisory. See SPEC.md §3.2.",
+      "additionalProperties": true,
+      "properties": {
+        "publisher": {
+          "type": "string",
+          "description": "Human-readable name of the publishing organisation or individual.",
+          "minLength": 1
+        },
+        "publisher_url": {
+          "type": "string",
+          "description": "URL of the publisher's web presence. MUST use HTTPS if present."
+        },
+        "contact": {
+          "type": "string",
+          "description": "Email address or URL for questions about this manifest's content."
+        },
+        "publisher_did": {
+          "type": "string",
+          "description": "A W3C Decentralized Identifier for the publisher (e.g. did:web:acme.com). Advisory; cryptographically resolvable identity (v0.23)."
+        }
+      }
+    },
+    "trust_audit": {
+      "type": "object",
+      "description": "Audit requirements within the trust block. All fields are optional and advisory. See SPEC.md §3.2.",
+      "additionalProperties": true,
+      "properties": {
+        "agent_must_log": {
+          "type": "boolean",
+          "description": "Whether agents SHOULD log every access to this manifest's units. Default: false."
+        },
+        "require_trace_context": {
+          "type": "boolean",
+          "description": "Whether agents SHOULD attach W3C Trace Context (traceparent/tracestate) headers when fetching unit content. For local file access, agents SHOULD generate a traceparent value and record it in local logs. Default: false."
+        },
+        "provides_access_receipts": {
+          "type": "boolean",
+          "description": "Whether the source issues a verifiable receipt for each access, so an auditor can confirm which agent accessed which unit and when. A capability of the source, not a requirement on the agent (v0.23). Default: false."
+        },
+        "receipt_format": {
+          "type": "string",
+          "description": "Identifies the receipt format when provides_access_receipts is true — e.g. jws, vc (W3C Verifiable Credential), or a URL to a format spec (v0.23)."
+        }
+      }
+    },
+    "trust_agent_requirements": {
+      "type": "object",
+      "description": "Agent attestation requirements within the trust block (v0.22). Declares what an agent must prove about itself before access: restricted units are served. KCP declares; agents attest. See SPEC.md §3.2.",
+      "additionalProperties": true,
+      "properties": {
+        "require_attestation": {
+          "type": "boolean",
+          "description": "If true, agents MUST present attestation before accessing access: restricted units. Satisfied by trusted_providers OR attestation_url. Default: false."
+        },
+        "trusted_providers": {
+          "type": "array",
+          "description": "Trusted agent-provider domain names (identity-based; matched against the OIDC-A agent_provider claim).",
+          "items": { "type": "string" }
+        },
+        "attestation_url": {
+          "type": "string",
+          "description": "HTTPS endpoint that verifies agent credentials (credential-based). The verification mechanism is out of KCP scope."
+        },
+        "attestation_jwks": {
+          "type": "string",
+          "description": "JWKS endpoint URL for verifying signed responses from attestation_url. If absent, agents use the attestation_url TLS certificate as trust anchor."
+        },
+        "propagate_to_governed": {
+          "type": "boolean",
+          "description": "If true, a manifest that governs another declares that its governed manifests MUST satisfy at least these attestation requirements. Default: false."
+        }
+      }
+    },
+    "auth_object": {
+      "type": "object",
+      "description": "Root-level authentication methods available for accessing protected units. OPTIONAL. See SPEC.md §3.3.",
+      "additionalProperties": true,
+      "properties": {
+        "methods": {
+          "type": "array",
+          "description": "Ordered list of authentication methods supported by the publisher. Agents pick the first method they can satisfy.",
+          "items": { "$ref": "#/definitions/auth_method" },
+          "minItems": 1
+        }
+      }
+    },
+    "auth_method": {
+      "type": "object",
+      "description": "A single authentication method declaration. The type field determines which sub-fields are relevant.",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Authentication method type. Defined values (v0.22): none, oauth2, api_key, bearer_token, spiffe, did, http_signature. Units with access: authenticated or access: restricted require a non-none method. Unknown types are silently ignored."
+        },
+        "issuer": {
+          "type": "string",
+          "description": "OAuth 2.1 issuer URL. Required when type is oauth2."
+        },
+        "scopes": {
+          "type": "array",
+          "description": "OAuth 2.1 scopes available. Relevant when type is oauth2.",
+          "items": { "type": "string" }
+        },
+        "header": {
+          "type": "string",
+          "description": "HTTP header name for the API key. Default: X-API-Key. Relevant when type is api_key."
+        },
+        "registration_url": {
+          "type": "string",
+          "description": "URL where agents or users can obtain credentials."
+        },
+        "trust_domain": {
+          "type": "string",
+          "description": "SPIFFE trust domain the source accepts. Relevant when type is spiffe (v0.22)."
+        },
+        "supported_methods": {
+          "type": "array",
+          "description": "Accepted DID methods (e.g. did:web, did:key). Relevant when type is did (v0.22).",
+          "items": { "type": "string" }
+        },
+        "key_id": {
+          "type": "string",
+          "description": "Identifier of the key the agent signs with. Relevant when type is http_signature (v0.22)."
+        },
+        "algorithm": {
+          "type": "string",
+          "description": "Signature algorithm (e.g. ed25519). Relevant when type is http_signature (v0.22)."
+        }
+      }
+    },
+    "delegation_object": {
+      "type": "object",
+      "description": "Delegation chain constraints for multi-agent access. Can appear at root level (as default for all units) or at unit level (as override). See SPEC.md §3.4.",
+      "additionalProperties": true,
+      "properties": {
+        "max_depth": {
+          "type": "integer",
+          "description": "Maximum delegation chain depth. 0 = no delegation permitted. Omit for no constraint.",
+          "minimum": 0
+        },
+        "require_capability_attenuation": {
+          "type": "boolean",
+          "description": "If true, each hop in the delegation chain MUST present narrower permissions than the delegating agent held."
+        },
+        "require_delegation_proof": {
+          "type": "boolean",
+          "description": "If true, an accessing agent MUST present a verifiable delegation chain back to the resource owner, not merely assert a depth. Parsers expose it; proof verification is the agent's (v0.23). Default: false."
+        },
+        "audit_chain": {
+          "type": "boolean",
+          "description": "If true, agents MUST include W3C Trace Context headers on all access requests."
+        },
+        "human_in_the_loop": {
+          "type": "object",
+          "description": "Human approval requirement. See SPEC.md §3.4.",
+          "additionalProperties": true,
+          "properties": {
+            "required": {
+              "type": "boolean",
+              "description": "If true, a human MUST approve agent access before the unit may be loaded. Default: false."
+            },
+            "approval_mechanism": {
+              "type": "string",
+              "description": "How human approval is obtained. Values: oauth_consent, uma, custom.",
+              "enum": ["oauth_consent", "uma", "custom"]
+            },
+            "docs_url": {
+              "type": "string",
+              "description": "URL describing the approval flow. REQUIRED when approval_mechanism is custom."
+            }
+          }
+        }
+      }
+    },
+    "compliance_object": {
+      "type": "object",
+      "description": "Compliance classification and processing restrictions. Can appear at root level (as default for all units) or at unit level (as override). See SPEC.md §3.5.",
+      "additionalProperties": true,
+      "properties": {
+        "data_residency": {
+          "type": "array",
+          "description": "Permitted geographic regions for data storage and processing. ISO 3166-1 alpha-2 codes or region identifiers (e.g. EEA, US, CH).",
+          "items": { "type": "string" }
+        },
+        "sensitivity": {
+          "type": "string",
+          "description": "Information sensitivity level. Values: public, internal, confidential, restricted.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "regulations": {
+          "type": "array",
+          "description": "Named regulations that apply to this knowledge. Unknown values MUST be silently ignored.",
+          "items": { "type": "string" }
+        },
+        "restrictions": {
+          "type": "array",
+          "description": "Processing restrictions. Unknown values MUST be silently ignored.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "payment_object": {
+      "type": "object",
+      "description": "Monetisation model. Can appear at root level (as default for all units) or at unit level (as override; replaces root, no merge). Advisory — KCP declares economics and settles nothing. See SPEC.md §4.14.",
+      "additionalProperties": true,
+      "properties": {
+        "default_tier": {
+          "type": "string",
+          "description": "Monetisation tier. Values: free (default), metered (per-request billing), subscription (requires active plan).",
+          "enum": ["free", "metered", "subscription"]
+        },
+        "methods": {
+          "type": "array",
+          "description": "Ordered list of accepted payment methods (v0.25). Ordered by publisher preference; an agent SHOULD select the first it supports.",
+          "items": { "$ref": "#/definitions/payment_method" }
+        },
+        "billing_contact": {
+          "type": "string",
+          "description": "Contact (email or URL) for billing questions (v0.25)."
+        }
+      }
+    },
+    "payment_method": {
+      "type": "object",
+      "description": "One accepted payment mechanism (v0.25). See SPEC.md §4.14.",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Payment mechanism. free (no cost), x402 (HTTP 402 micropayment), meter (metered API billing), subscription (plan-based).",
+          "enum": ["free", "x402", "meter", "subscription"]
+        },
+        "currency": {
+          "type": "string",
+          "description": "x402: ISO 4217 code (USD, EUR) or crypto ticker (USDC, ETH). Required for x402."
+        },
+        "price_per_request": {
+          "type": "string",
+          "description": "x402: amount as a decimal string (e.g. \"0.001\") to avoid floating-point rounding. Required for x402."
+        },
+        "networks": {
+          "type": "array",
+          "description": "x402: settlement networks accepted (ethereum, base, solana, polygon).",
+          "items": { "type": "string" }
+        },
+        "wallet": {
+          "type": "string",
+          "description": "x402: receiving wallet address or payment-processor endpoint URL. KCP never dereferences it."
+        },
+        "provider": {
+          "type": "string",
+          "description": "meter: billing provider, e.g. stripe, google-ap2, generic."
+        },
+        "plans_url": {
+          "type": "string",
+          "description": "meter / subscription: URL describing plans or pricing."
+        },
+        "free_tier": {
+          "type": "boolean",
+          "description": "subscription: whether a free tier exists under the plan."
+        },
+        "free_requests_per_day": {
+          "type": "integer",
+          "description": "subscription: free-tier request budget per day.",
+          "minimum": 0
+        },
+        "upgrade_url": {
+          "type": "string",
+          "description": "subscription: URL to upgrade from the free tier."
+        }
+      }
+    },
+    "rate_limit_count": {
+      "description": "A request/token count limit: a positive integer, or the sentinel \"unlimited\" (v0.25).",
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "string", "enum": ["unlimited"] }
+      ]
+    },
+    "rate_limit_tier": {
+      "type": "object",
+      "description": "Rate limits for one authentication tier. See SPEC.md §4.15.",
+      "additionalProperties": true,
+      "properties": {
+        "requests_per_minute": { "$ref": "#/definitions/rate_limit_count", "description": "Maximum requests per 60-second rolling window." },
+        "requests_per_hour": { "$ref": "#/definitions/rate_limit_count", "description": "Maximum requests per 60-minute window (v0.25)." },
+        "requests_per_day": { "$ref": "#/definitions/rate_limit_count", "description": "Maximum requests per calendar day (UTC)." }
+      }
+    },
+    "rate_limit_tokens_tier": {
+      "type": "object",
+      "description": "Token-based limits for one authentication tier (v0.25).",
+      "additionalProperties": true,
+      "properties": {
+        "tokens_per_minute": { "$ref": "#/definitions/rate_limit_count" },
+        "tokens_per_day": { "$ref": "#/definitions/rate_limit_count" }
+      }
+    },
+    "rate_limits_object": {
+      "type": "object",
+      "description": "Rate limit declarations. Can appear at root level (as default for all units) or at unit level (as override). Advisory — agents self-throttle, KCP does not enforce. See SPEC.md §4.15.",
+      "additionalProperties": true,
+      "properties": {
+        "default": { "$ref": "#/definitions/rate_limit_tier", "description": "Limits for anonymous access." },
+        "authenticated": { "$ref": "#/definitions/rate_limit_tier", "description": "Limits for an authenticated non-premium agent (v0.25)." },
+        "premium": { "$ref": "#/definitions/rate_limit_tier", "description": "Limits for a paid/subscription-tier agent (v0.25)." },
+        "tokens": {
+          "type": "object",
+          "description": "Token-based limits mirroring the tier structure (v0.25).",
+          "additionalProperties": true,
+          "properties": {
+            "default": { "$ref": "#/definitions/rate_limit_tokens_tier" },
+            "authenticated": { "$ref": "#/definitions/rate_limit_tokens_tier" },
+            "premium": { "$ref": "#/definitions/rate_limit_tokens_tier" }
+          }
+        },
+        "headers": {
+          "type": "object",
+          "description": "Names of response headers carrying live limit state (v0.25).",
+          "additionalProperties": true,
+          "properties": {
+            "remaining": { "type": "string" },
+            "reset": { "type": "string" },
+            "retry_after": { "type": "string" }
+          }
+        },
+        "backoff": {
+          "type": "string",
+          "description": "Recommended backoff strategy (v0.25).",
+          "enum": ["linear", "exponential", "none"]
+        }
+      }
+    },
+    "serving_object": {
+      "type": "object",
+      "description": "Signed declaration of the manifest's authoritative serving endpoints (v0.26). Each declared list is exhaustive for its class; every entry MUST be HTTPS. See SPEC.md §3.12.",
+      "additionalProperties": true,
+      "properties": {
+        "manifest": {
+          "type": "array",
+          "description": "HTTPS URLs at which this manifest is authoritatively served. A verifier that retrieved it from an unlisted URL demotes trusted -> known (C22).",
+          "items": { "type": "string", "pattern": "^https://" }
+        },
+        "mcp": {
+          "type": "array",
+          "description": "HTTPS URLs of MCP endpoints authorized to represent this manifest to agents.",
+          "items": { "type": "string", "pattern": "^https://" }
+        }
+      }
+    },
+    "task_type": {
+      "type": "object",
+      "description": "A task-type declaration with its own authority_level ceiling (v0.27). See SPEC.md §3.13.",
+      "required": ["id"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier, unique within the manifest.",
+          "minLength": 1
+        },
+        "intent": {
+          "type": "string",
+          "description": "One-sentence description of the task-type, in the style of unit intent."
+        },
+        "authority_level": {
+          "type": "string",
+          "description": "This task-type's own declared ceiling, from the root authority_level_scale."
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "description": "An agent declaration (Capability Profile) with its own authority_level ceiling (v0.27). See SPEC.md §3.13.",
+      "required": ["id"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier, unique within the manifest.",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "authority_level": {
+          "type": "string",
+          "description": "This agent's own capability ceiling, across all tasks it is assigned, from the root authority_level_scale."
+        }
+      }
+    },
+    "grant_ceiling_source": {
+      "type": "object",
+      "description": "One ceiling source in a grant_ceiling minimum computation. Exactly one of authority_level, unit_ref, task_type_ref, agent_ref MUST be present. See SPEC.md §3.13.",
+      "required": ["id"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier for this source, used in the effective-level trace and in mandatory_sources.",
+          "minLength": 1
+        },
+        "authority_level": {
+          "type": "string",
+          "description": "Inline ceiling value from authority_level_scale. Mutually exclusive with the *_ref fields."
+        },
+        "unit_ref": {
+          "type": "string",
+          "description": "Resolve ceiling from a referenced unit's own authority_level."
+        },
+        "task_type_ref": {
+          "type": "string",
+          "description": "Resolve ceiling from a referenced task_types[].id's own authority_level."
+        },
+        "agent_ref": {
+          "type": "string",
+          "description": "Resolve ceiling from a referenced agents[].id's own declared capability ceiling."
+        }
+      }
+    },
+    "grant_ceiling_object": {
+      "type": "object",
+      "description": "Multi-source minimum ceiling computation: the effective authority_level is the minimum across all resolved sources, with the binding source(s) named for the audit trail (v0.27). See SPEC.md §3.13.",
+      "required": ["sources"],
+      "additionalProperties": true,
+      "properties": {
+        "sources": {
+          "type": "array",
+          "description": "Ceiling sources. Every id declared in mandatory_sources MUST appear here.",
+          "items": { "$ref": "#/definitions/grant_ceiling_source" }
+        },
+        "mandatory_sources": {
+          "type": "array",
+          "description": "Source ids that MUST appear in every grant_ceiling in this manifest. A grant_ceiling missing one is a manifest error — this prevents a leaf from silently dropping an org policy ceiling.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "description": "An explicit directional relationship between two knowledge units.",
+      "required": ["from", "to", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "ID of the source unit.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "to": {
+          "type": "string",
+          "description": "ID of the target unit.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of relationship. Defined values: enables, context, supersedes, contradicts, depends_on, governs."
+        }
+      }
+    },
+    "manifest_ref": {
+      "type": "object",
+      "description": "A reference to an external KCP manifest in the federation. See SPEC.md §3.6.",
+      "required": ["id", "url"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Local identifier for this sub-manifest. MUST be unique within the manifests block.",
+          "pattern": "^[a-z0-9.\\-]+$",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "description": "HTTPS URL of the remote knowledge.yaml. MUST use HTTPS.",
+          "pattern": "^https://",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable description of this sub-manifest."
+        },
+        "relationship": {
+          "type": "string",
+          "description": "How this sub-manifest relates to the declaring manifest. Values: child, foundation, governs, peer, archive.",
+          "enum": ["child", "foundation", "governs", "peer", "archive"]
+        },
+        "auth": { "$ref": "#/definitions/auth_object" },
+        "update_frequency": {
+          "type": "string",
+          "description": "How often this remote manifest typically changes. Agents MAY use this for cache freshness decisions.",
+          "enum": ["hourly", "daily", "weekly", "monthly", "rarely", "never"]
+        },
+        "local_mirror": {
+          "type": "string",
+          "description": "Relative path (forward slashes) to a local copy of the remote manifest. When present and the file exists, parsers MUST load from that path instead of fetching url."
+        },
+        "version_pin": {
+          "type": "string",
+          "description": "Semver version to pin this sub-manifest to. Validators SHOULD compare against the remote manifest's version field. See SPEC.md §3.6."
+        },
+        "version_policy": {
+          "type": "string",
+          "description": "How to interpret version_pin. Default: compatible. See SPEC.md §3.6.",
+          "enum": ["exact", "minimum", "compatible"],
+          "default": "compatible"
+        },
+        "context": {
+          "type": "array",
+          "description": "Environment labels for which this sub-manifest reference is valid (v0.24). Absent = valid in all environments. Non-normative vocabulary: dev, test, staging, prod. Advisory selection hint. See SPEC.md §3.6.",
+          "items": { "type": "string" }
+        },
+        "agent_identity": { "$ref": "#/definitions/agent_identity" }
+      }
+    },
+    "agent_identity": {
+      "type": "object",
+      "description": "Pre-fetch credential-planning hint on a manifests[] entry (v0.24). Declaration layer, not an auth protocol. See SPEC.md §3.6.",
+      "additionalProperties": true,
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Whether a credential is expected before fetching this sub-manifest. Default: false.",
+          "default": false
+        },
+        "credential_hint": {
+          "type": "string",
+          "description": "Advisory credential type. Non-normative vocabulary: github_pat, oauth2, confluence_pat, api_key, none. Implementations MAY extend."
+        },
+        "issuer_hint": {
+          "type": "string",
+          "description": "For oauth2: the issuer URL the agent should use to obtain a token."
+        },
+        "docs_url": {
+          "type": "string",
+          "description": "Where a developer finds instructions for acquiring the credential."
+        }
+      }
+    },
+    "external_dependency": {
+      "type": "object",
+      "description": "A cross-manifest dependency for a knowledge unit. See SPEC.md §3.6.",
+      "required": ["manifest", "unit"],
+      "additionalProperties": true,
+      "properties": {
+        "manifest": {
+          "type": "string",
+          "description": "The id of an entry in this manifest's manifests block.",
+          "pattern": "^[a-z0-9.\\-]+$",
+          "minLength": 1
+        },
+        "unit": {
+          "type": "string",
+          "description": "The id of a unit in the referenced manifest.",
+          "pattern": "^[a-z0-9.\\-]+$",
+          "minLength": 1
+        },
+        "on_failure": {
+          "type": "string",
+          "description": "Agent behaviour when the external unit cannot be resolved. Default: skip.",
+          "enum": ["skip", "warn", "degrade"],
+          "default": "skip"
+        }
+      }
+    },
+    "external_relationship": {
+      "type": "object",
+      "description": "An explicit typed relationship between units across manifest boundaries. See SPEC.md §3.6.",
+      "required": ["from_unit", "to_unit", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "from_manifest": {
+          "type": "string",
+          "description": "Source manifest id. Omit for this manifest.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "from_unit": {
+          "type": "string",
+          "description": "Source unit id.",
+          "pattern": "^[a-z0-9.\\-]+$",
+          "minLength": 1
+        },
+        "to_manifest": {
+          "type": "string",
+          "description": "Target manifest id. Omit for this manifest.",
+          "pattern": "^[a-z0-9.\\-]+$"
+        },
+        "to_unit": {
+          "type": "string",
+          "description": "Target unit id.",
+          "pattern": "^[a-z0-9.\\-]+$",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "description": "Relationship type. Same vocabulary as §5: enables, context, supersedes, contradicts, depends_on, governs."
+        }
+      }
+    },
+    "visibility_object": {
+      "type": "object",
+      "description": "Conditional access declarations. Can appear at root level (as manifest-wide default) or at unit level (as override). See SPEC.md §4.16 and RFC-0009.",
+      "additionalProperties": true,
+      "properties": {
+        "default": {
+          "type": "string",
+          "description": "Baseline sensitivity when no condition matches. Values: public, internal, confidential, restricted.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Ordered list of condition objects. First matching condition wins.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "when": {
+                "type": "object",
+                "description": "Matching criteria. A condition matches when ALL when keys match the agent's declared context.",
+                "additionalProperties": true,
+                "properties": {
+                  "environment": {
+                    "description": "Match when the agent's environment equals this value or appears in this list.",
+                    "oneOf": [
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
+                    ]
+                  },
+                  "agent_role": {
+                    "description": "Match when the agent's declared role equals this value or appears in this list.",
+                    "oneOf": [
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "description": "Overrides to apply when this condition matches.",
+                "additionalProperties": true,
+                "properties": {
+                  "sensitivity": {
+                    "type": "string",
+                    "description": "Sensitivity override. Values: public, internal, confidential, restricted.",
+                    "enum": ["public", "internal", "confidential", "restricted"]
+                  },
+                  "requires_auth": {
+                    "type": "boolean",
+                    "description": "Whether authentication is required to access this unit under this condition."
+                  },
+                  "authority": { "$ref": "#/definitions/authority_object" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "authority_object": {
+      "type": "object",
+      "description": "Action permission declarations. Can appear at root level (as manifest-wide default) or at unit level (as override). See SPEC.md §4.17 and RFC-0009.",
+      "additionalProperties": true,
+      "properties": {
+        "read": {
+          "type": "string",
+          "description": "Permission to load and reason over this unit's content. Default: initiative.",
+          "enum": ["initiative", "requires_approval", "denied"]
+        },
+        "summarize": {
+          "type": "string",
+          "description": "Permission to produce summaries or extracts of this unit. Default: initiative.",
+          "enum": ["initiative", "requires_approval", "denied"]
+        },
+        "modify": {
+          "type": "string",
+          "description": "Permission to modify files, records, or code described by or in this unit. Default: denied.",
+          "enum": ["initiative", "requires_approval", "denied"]
+        },
+        "share_externally": {
+          "type": "string",
+          "description": "Permission to include this content in external communications or outputs sent outside the agent's working context. Default: denied.",
+          "enum": ["initiative", "requires_approval", "denied"]
+        },
+        "execute": {
+          "type": "string",
+          "description": "Permission to run commands, scripts, or instructions contained in this unit. Default: denied.",
+          "enum": ["initiative", "requires_approval", "denied"]
+        }
+      }
+    },
+    "discovery_object": {
+      "type": "object",
+      "description": "Provenance metadata for how a unit was discovered. Can appear at root level (as manifest-wide default) or at unit level. See SPEC.md §4.18 and RFC-0012.",
+      "additionalProperties": true,
+      "properties": {
+        "verification_status": {
+          "type": "string",
+          "description": "The current verification state of this capability declaration. Values: rumored, declared, observed, verified, deprecated. Default (when absent): verified.",
+          "enum": ["rumored", "declared", "observed", "verified", "deprecated"]
+        },
+        "source": {
+          "type": "string",
+          "description": "How this unit was discovered. Values: manual, web_traversal, openapi, llm_inference, manifest-self-description. Default: manual.",
+          "enum": ["manual", "web_traversal", "openapi", "llm_inference", "manifest-self-description"]
+        },
+        "observed_at": {
+          "type": "string",
+          "description": "ISO 8601 datetime when this capability was first observed or inferred."
+        },
+        "verified_at": {
+          "description": "ISO 8601 datetime when this capability was independently confirmed. MUST be null if verification_status is rumored, declared, or observed.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence in this capability declaration. Range 0.0–1.0. Rumored units MUST have confidence < 0.5. Declared units SHOULD have confidence in [0.5, 0.8). Verified units SHOULD have confidence >= 0.8.",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "contradicted_by": {
+          "description": "The id of another unit in this manifest that provides a conflicting description of the same capability.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}
