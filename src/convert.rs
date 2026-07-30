@@ -27,7 +27,10 @@ const INTEGRITY_PREFIX: &str = "# forge-integrity: sha256:";
 fn sha256_hex(bytes: &[u8]) -> String {
     // sha2 0.11 dropped LowerHex on the digest output; byte-wise formatting works on
     // both 0.10 and 0.11.
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn display(path: &Path) -> String {
