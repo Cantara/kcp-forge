@@ -1,0 +1,25 @@
+name: forge-corpus-qa
+description: Run kcp-forge over a skills corpus in CI and locally — validate structural integrity, convert skills to governed siblings, and keep drift visible. Use when wiring corpus QA into a pipeline or diagnosing why a corpus check fails.
+tools:
+  - Bash
+trigger_phrases:
+  - "validate the skills corpus"
+  - "corpus drift"
+  - "convert skills to kcp"
+instructions: |
+  ## The three commands
+
+  ```bash
+  kcp-forge validate skills          # exit 0 clean, 1 findings, 2 tool error
+  kcp-forge convert skills           # dry-run: shows what --apply would write
+  kcp-forge convert --apply skills   # writes <name>.kcp.yaml siblings
+  kcp-forge drift skills             # source-edited / unconverted / spec-drift / orphaned
+  ```
+
+  ## Rules that bite
+
+  - Never pipe through `tail`/`head` in CI — the exit code is the verdict.
+  - A `hand-edited` refusal means someone changed a derived sibling: move their edit
+    into the source skill, delete nothing, re-run `convert --apply`.
+  - `empty-corpus` means the path is wrong, not that things are fine.
+  - `--json` for machines; parse `findings[].kind`, never the text.

@@ -1,0 +1,25 @@
+# Derived by kcp-forge from forge-corpus-qa.yaml. DO NOT EDIT — edit the source and re-run
+# `kcp-forge convert --apply`. Hand edits are detected and refused, not clobbered.
+id: forge-corpus-qa
+path: forge-corpus-qa.yaml
+kind: skill
+intent: Run kcp-forge over a skills corpus in CI and locally — validate structural integrity, convert skills to governed siblings, and keep drift visible. Use when wiring corpus QA into a pipeline or diagnosing why a corpus check fails.
+scope: project
+audience:
+- agent
+triggers:
+- validate the skills corpus
+- corpus drift
+- convert skills to kcp
+load_eligible: true
+action_scope:
+  tools:
+  - Bash
+content_hash:
+  algorithm: sha256
+  value: 14b6f8c0dc2187098ecb04a481dcaa28bb32175c06d3133265d5edbaf70791e7
+x-forge:
+  forge_version: 0.1.0
+  kcp_version: '0.30'
+  source: forge-corpus-qa.yaml
+# forge-integrity: sha256:2d6fc5050973d1343fc9b50d3dce11c28576e240f244ab862cca87101290580c

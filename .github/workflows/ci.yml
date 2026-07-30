@@ -1,0 +1,18 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      # Dogfood: the repo's own corpus must validate, and its siblings must not drift.
+      - run: cargo run -q -- validate skills
+      - run: cargo run -q -- drift skills

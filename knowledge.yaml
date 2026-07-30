@@ -1,0 +1,32 @@
+version: "0.1.0"
+kcp_version: "0.30"
+project: kcp-forge
+language: en
+license: Apache-2.0
+
+units:
+  - id: front-door
+    path: README.md
+    intent: "What is kcp-forge, why does corpus rot happen silently, and how do the three commands keep it visible?"
+    scope: global
+    audience: [human, agent]
+    triggers: [readme, overview, corpus, validate, drift, convert]
+
+  - id: design
+    path: DESIGN.md
+    intent: "The design rules and the measured failures that bought each of them — exit codes, dry-run defaults, universal truths vs shape diversity, the sibling model"
+    scope: global
+    audience: [human, agent, architect]
+    triggers: [design, rules, sibling, rationale, decision]
+
+  - id: forge-corpus-qa
+    path: skills/forge-corpus-qa.yaml
+    kind: skill
+    intent: "How does an agent run kcp-forge over a corpus in CI — the three commands, the exit-code contract, and what each finding kind means?"
+    scope: project
+    audience: [agent]
+    triggers: [CI, pipeline, corpus QA, exit code, finding]
+    load_eligible: true
+    action_scope:
+      tools: [Bash]
+      capabilities: ["forge.corpus-qa"]
