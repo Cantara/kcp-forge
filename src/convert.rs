@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 
 /// The spec minor this converter targets. A sibling declaring an older value is stale
 /// even when its content hash still matches — the 0.7-freeze failure mode.
-pub const TARGET_KCP_VERSION: &str = "0.30";
+pub const TARGET_KCP_VERSION: &str = "0.32";
 
 pub const INTEGRITY_PREFIX: &str = "# forge-integrity: sha256:";
 
@@ -151,14 +151,14 @@ fn governed_unit(src: &Source) -> Mapping {
 
 /// The three axes an action_scope bounds (§4.3a): tool names, filesystem paths, named
 /// capabilities. `deny` mirrors this shape exactly.
-const SCOPE_DIMENSIONS: &[&str] = &["tools", "paths", "capabilities"];
+pub const SCOPE_DIMENSIONS: &[&str] = &["tools", "paths", "capabilities"];
 
 /// Read the source's OPTIONAL `deny` declaration into an `action_scope.deny` mapping.
 /// RFC-0029: same shape as the allowlist — { tools?, paths?, capabilities? }. Only the
 /// dimensions the source actually states are carried; an empty list is dropped. An
 /// absent or wholly-empty deny is a no-op and yields `None`, so a no-op sibling is never
 /// emitted (matches the spec's "an empty deny object is a no-op").
-fn deny_scope(doc: &Mapping) -> Option<Mapping> {
+pub fn deny_scope(doc: &Mapping) -> Option<Mapping> {
     let Some(Value::Mapping(src_deny)) = doc.get(Value::from("deny")) else {
         return None;
     };
@@ -175,7 +175,7 @@ fn deny_scope(doc: &Mapping) -> Option<Mapping> {
 
 /// The set of string tokens declared for one scope axis; non-strings and absent axes
 /// yield the empty set.
-fn token_set(value: Option<&Value>) -> BTreeSet<String> {
+pub fn token_set(value: Option<&Value>) -> BTreeSet<String> {
     match value {
         Some(Value::Sequence(items)) => items
             .iter()

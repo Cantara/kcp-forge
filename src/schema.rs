@@ -89,6 +89,16 @@ mod tests {
     }
 
     #[test]
+    fn a_playbook_with_action_scope_deny_validates_under_0_32() {
+        // RFC-0030 / KCP 0.32: the vendored schema must accept kcp_version "0.32" and a
+        // playbook-level action_scope.deny — the normative blanket prohibition.
+        let m = map(
+            "kcp_version: \"0.32\"\nproject: p\nunits:\n  - id: pb\n    path: playbooks/pb.md\n    kind: playbook\n    intent: run the thing\n    scope: project\n    audience: [agent]\n    load_eligible: true\n    action_scope:\n      deny:\n        tools: [transfer_ownership]\n        paths: [\"legal/hold/**\"]\n    steps:\n      - id: s1\n        uses: a-skill\n",
+        );
+        assert!(validate_manifest(&m).is_ok(), "{:?}", validate_manifest(&m));
+    }
+
+    #[test]
     fn a_manifest_without_project_is_rejected() {
         // Proves the validator is real, not a rubber stamp: `project` is REQUIRED.
         let m = map(

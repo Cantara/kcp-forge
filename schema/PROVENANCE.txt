@@ -3,9 +3,9 @@ knowledge-schema.json — vendored, verbatim
 
 Source repository : https://github.com/Cantara/knowledge-context-protocol
 Source path        : schema/knowledge-schema.json
-Source revision    : 5a6e0f4faf0ea89d2e83c988bfc2350e678b58de
-KCP spec version   : 0.30
-sha256             : ad894f5251664ae2d5e736c8376515e248d8af05494471cecba7123bd1049970
+Source revision    : 307f5b3f51ebf89633ad23457ba7b63cf52cc681
+KCP spec version   : 0.32
+sha256             : f5f3c9953f822e1dbd69aaac29290f62460898005221b3757636274a59702ff1
 
 This file is the real KCP manifest JSON Schema, copied byte-for-byte from the
 knowledge-context-protocol repo. kcp-forge embeds it (see src/schema.rs,
