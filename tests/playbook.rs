@@ -98,7 +98,7 @@ fn author_playbook_apply_writes_a_schema_valid_governed_playbook() {
 
     // A whole manifest: the schema requires project + units.
     assert_eq!(m["project"], "promote-compliance-record");
-    assert_eq!(m["kcp_version"], "0.30");
+    assert_eq!(m["kcp_version"], "0.32");
 
     // §3.13 authority model at the root.
     let scale = m["authority_level_scale"].as_sequence().unwrap();
@@ -250,6 +250,162 @@ fn grant_ceiling_missing_a_mandatory_source_is_rejected() {
         .assert()
         .code(1)
         .stdout(predicate::str::contains("mandatory-source"));
+}
+
+// RFC-0030 / KCP 0.32: `action_scope.deny` on a `kind: playbook` unit is a blanket
+// prohibition over EVERY step — normative for enactment, unlike the rest of the playbook
+// `action_scope` envelope, which stays declarative. The effective denylist for a step is
+// the per-dimension UNION of the playbook's deny and the used skill's deny; a match in
+// either refuses, overriding any allow (§4.3a deny-first). A downstream KCP consumer
+// enforces this at run time; forge's job is to author it faithfully.
+const SPEC_WITH_DENY: &str = "\
+name: quarantine-cleanup
+description: Delete quarantined records without ever touching material under legal hold.
+authority_level: commit
+deny:
+  tools: [transfer_ownership]
+  paths: [\"legal/hold/**\"]
+steps:
+  - id: identify
+    uses: find-quarantined
+    intent: Identify the quarantined records due for deletion.
+    authority_level: observe
+    tools: [kcp-read]
+  - id: purge
+    uses: purge-records
+    intent: Delete the identified records.
+    authority_level: commit
+    depends_on: [identify]
+    tools: [rm]
+    paths: [\"records/quarantine/**\"]
+    deny:
+      tools: [shell]
+";
+
+#[test]
+fn author_playbook_emits_playbook_level_deny() {
+    let dir = TempDir::new().unwrap();
+    write(&dir, "cleanup.playbook.yaml", SPEC_WITH_DENY);
+    forge()
+        .arg("author-playbook")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success()
+        // The deny-carrying artifact still passes the real (v0.32) KCP schema.
+        .stdout(predicate::str::contains("schema-valid"));
+
+    let sibling = dir.path().join("quarantine-cleanup.playbook.kcp.yaml");
+    let m: serde_yaml::Value =
+        serde_yaml::from_str(&fs::read_to_string(&sibling).unwrap()).unwrap();
+    let units = m["units"].as_sequence().unwrap();
+    let playbook = units
+        .iter()
+        .find(|u| u["kind"] == "playbook")
+        .expect("a kind: playbook unit");
+
+    // RFC-0030: the blanket prohibition sits on the playbook unit itself, in the same
+    // { tools?, paths?, capabilities? } shape as the §4.3a skill-level deny.
+    assert_eq!(
+        playbook["action_scope"]["deny"]["tools"][0],
+        "transfer_ownership"
+    );
+    assert_eq!(
+        playbook["action_scope"]["deny"]["paths"][0],
+        "legal/hold/**"
+    );
+
+    // A step's own deny is still authored onto the skill unit it enacts (RFC-0029) —
+    // the playbook deny composes with it by union, it does not replace it.
+    let purge = units
+        .iter()
+        .find(|u| u["id"] == "purge-records")
+        .expect("the purge-records skill unit");
+    assert_eq!(purge["action_scope"]["deny"]["tools"][0], "shell");
+}
+
+#[test]
+fn author_playbook_omits_deny_when_spec_has_none() {
+    // Absent deny is a no-op: the deny-free spec authors byte-for-byte what it did
+    // before RFC-0030 — no `deny` key appears anywhere in the playbook unit.
+    let dir = TempDir::new().unwrap();
+    write(&dir, "promote.playbook.yaml", SPEC);
+    forge()
+        .arg("author-playbook")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success();
+    let m: serde_yaml::Value =
+        serde_yaml::from_str(&fs::read_to_string(dir.path().join(SIBLING)).unwrap()).unwrap();
+    let playbook = m["units"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .find(|u| u["kind"] == "playbook")
+        .unwrap();
+    assert!(
+        playbook["action_scope"]["deny"].is_null(),
+        "no deny declared → no deny emitted"
+    );
+}
+
+#[test]
+fn author_playbook_warns_on_a_self_nullified_step() {
+    // RFC-0030 validator rule: a step whose skill's whole allowlist for a dimension is
+    // contained in the EFFECTIVE deny (playbook ∪ skill) is self-nullified — it reads
+    // enactable but cannot act. Neither source alone contains the allow here; only the
+    // union does, so this also pins the union semantics. SHOULD warn, never fail.
+    let dir = TempDir::new().unwrap();
+    write(
+        &dir,
+        "dead.playbook.yaml",
+        "name: dead-step\ndescription: the union of denies refuses every tool the step allows\ndeny:\n  tools: [git]\nsteps:\n  - id: s1\n    uses: worker\n    tools: [git, shell]\n    deny:\n      tools: [shell]\n",
+    );
+    forge()
+        .arg("author-playbook")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("self-nullified-step"));
+    assert!(
+        dir.path().join("dead-step.playbook.kcp.yaml").exists(),
+        "a self-nullified step warns; it does not refuse authoring"
+    );
+}
+
+#[test]
+fn author_playbook_notes_an_empty_playbook_deny() {
+    // §4.3a: an empty deny object prohibits nothing. The lint names it, and the no-op
+    // is never written into the artifact.
+    let dir = TempDir::new().unwrap();
+    write(
+        &dir,
+        "noop.playbook.yaml",
+        "name: noop-deny\ndescription: a deny that lists nothing\ndeny:\n  tools: []\nsteps:\n  - id: s1\n    uses: a\n    tools: [git]\n",
+    );
+    forge()
+        .arg("author-playbook")
+        .arg("--apply")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("empty-deny"));
+    let m: serde_yaml::Value = serde_yaml::from_str(
+        &fs::read_to_string(dir.path().join("noop-deny.playbook.kcp.yaml")).unwrap(),
+    )
+    .unwrap();
+    let playbook = m["units"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .find(|u| u["kind"] == "playbook")
+        .unwrap();
+    assert!(
+        playbook["action_scope"]["deny"].is_null(),
+        "an empty deny is a no-op and must not be emitted"
+    );
 }
 
 #[test]

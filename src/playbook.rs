@@ -4,7 +4,10 @@
 //! governed unit from one skill file, `author-playbook` assembles an ordered composition
 //! (SPEC §4.3b): a manifest whose steps each enact a `kind: skill` unit, carrying the
 //! §3.13 authority model — a per-step `authority_level`, a playbook-level ceiling, and a
-//! multi-source `grant_ceiling` — plus the §4.3a `action_scope` each step is bounded by.
+//! multi-source `grant_ceiling` — plus the §4.3a `action_scope` each step is bounded by,
+//! and, since RFC-0030 (KCP 0.32), the playbook-level `action_scope.deny`: a blanket
+//! prohibition over every step, normative for enactment, composing with each used
+//! skill's own deny by per-dimension union.
 //!
 //! Two governance properties mirror `convert` exactly:
 //!   * **fail-closed** — the assembled artifact is validated against the *real* vendored
@@ -13,7 +16,10 @@
 //!   * **no clobber** — an emitted artifact ends with an integrity marker, and a hand
 //!     edit is detected and refused rather than silently overwritten.
 
-use crate::convert::{INTEGRITY_PREFIX, TARGET_KCP_VERSION, pristine, sha256_hex};
+use crate::convert::{
+    INTEGRITY_PREFIX, SCOPE_DIMENSIONS, TARGET_KCP_VERSION, deny_scope, pristine, sha256_hex,
+    token_set,
+};
 use crate::corpus;
 use crate::report::Report;
 use crate::schema;
@@ -263,6 +269,45 @@ fn lint<'a>(spec: &'a Spec, report: &mut Report) -> Option<Vec<&'a Mapping>> {
         }
     }
 
+    // RFC-0030 / KCP 0.32: playbook-level `deny` lints. Advisory, mirroring convert's
+    // self-nullifying check (SHOULD warn, never fail) — the artifact is still authored.
+    let pb_deny = deny_scope(&spec.doc);
+    if spec.doc.contains_key(Value::from("deny")) && pb_deny.is_none() {
+        // §4.3a: an empty deny object prohibits nothing; assemble never emits it.
+        report.note(
+            "empty-deny",
+            &file,
+            "playbook `deny` lists nothing; an empty deny prohibits nothing and is not emitted",
+        );
+    }
+    for step in &steps {
+        let sid = get_str(step, "id").unwrap_or("(unnamed)");
+        let step_deny = deny_scope(step);
+        for dim in SCOPE_DIMENSIONS {
+            let allow = token_set(step.get(Value::from(*dim)));
+            if allow.is_empty() {
+                continue;
+            }
+            // The effective denylist for a step is the per-dimension UNION of the
+            // playbook's deny and the used skill's deny (§4.3b) — a match in either
+            // refuses, overriding any allow. Containment is over declared tokens
+            // verbatim, exactly as in convert's RFC-0029 check.
+            let mut refused = token_set(pb_deny.as_ref().and_then(|d| d.get(Value::from(*dim))));
+            refused.extend(token_set(
+                step_deny.as_ref().and_then(|d| d.get(Value::from(*dim))),
+            ));
+            if allow.is_subset(&refused) {
+                report.note(
+                    "self-nullified-step",
+                    &file,
+                    format!(
+                        "step {sid:?}: effective deny (playbook ∪ skill) fully contains allow `{dim}`; the step can touch no {dim} (deny-overrides)"
+                    ),
+                );
+            }
+        }
+    }
+
     ok.then_some(steps)
 }
 
@@ -354,6 +399,11 @@ fn assemble(spec: &Spec, steps: &[&Mapping]) -> Mapping {
         if let Some(caps) = get_seq(step, "capabilities") {
             action_scope.insert("capabilities".into(), Value::Sequence(caps.clone()));
         }
+        // RFC-0029: a step's own `deny` is authored onto the skill unit it enacts — the
+        // same { tools?, paths?, capabilities? } shape convert emits, deny-overrides.
+        if let Some(deny) = deny_scope(step) {
+            action_scope.insert("deny".into(), Value::Mapping(deny));
+        }
 
         if emitted.insert(uses.to_string()) {
             let mut skill = Mapping::new();
@@ -396,6 +446,13 @@ fn assemble(spec: &Spec, steps: &[&Mapping]) -> Mapping {
     }
     if !union_paths.is_empty() {
         pb_scope.insert("paths".into(), Value::Sequence(union_paths));
+    }
+    // RFC-0030 / KCP 0.32: the playbook's own `deny` — a blanket prohibition over every
+    // step, NORMATIVE for enactment unlike the declarative union above. The effective
+    // denylist for a step is the union of this and the used skill's deny; forge authors
+    // it verbatim — never dropped, never relaxed (a deny is never grantable).
+    if let Some(deny) = deny_scope(&spec.doc) {
+        pb_scope.insert("deny".into(), Value::Mapping(deny));
     }
     if !pb_scope.is_empty() {
         pb.insert("action_scope".into(), Value::Mapping(pb_scope));
