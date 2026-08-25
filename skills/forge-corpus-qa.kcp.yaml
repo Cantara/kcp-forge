@@ -19,7 +19,7 @@ content_hash:
   algorithm: sha256
   value: 14b6f8c0dc2187098ecb04a481dcaa28bb32175c06d3133265d5edbaf70791e7
 x-forge:
-  forge_version: 0.4.0
+  forge_version: 0.4.1
   kcp_version: '0.32'
   source: forge-corpus-qa.yaml
-# forge-integrity: sha256:8daeeb6a2c3fe03ab6e0bf1a4f15b720ac3446e8353c7c468604cffbe358af74
+# forge-integrity: sha256:9ff1837cd4befc3a46c3952708d022484bdf4b159945a46ef8930dafb985f359

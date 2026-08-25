@@ -31,6 +31,18 @@ units:
       tools: [Bash]
       capabilities: ["forge.corpus-qa"]
 
+  - id: author-kcp-playbook
+    path: skills/author-kcp-playbook.yaml
+    kind: skill
+    intent: "How does an agent assemble a governed kind: playbook manifest from a compact spec with kcp-forge author-playbook, and what does the spec need to conform to the real schema?"
+    scope: project
+    audience: [agent]
+    triggers: [author-playbook, playbook, spec, authority_level, grant_ceiling]
+    load_eligible: true
+    action_scope:
+      tools: [Bash]
+      capabilities: ["forge.author-playbook"]
+
 manifests:
   # §3.6: `id` is REQUIRED and is how federation.manifest references resolve.
   # Without it these entries are unreferenceable and the manifest fails validation.

@@ -1,0 +1,25 @@
+# Derived by kcp-forge from author-kcp-playbook.yaml. DO NOT EDIT — edit the source and re-run
+# `kcp-forge convert --apply`. Hand edits are detected and refused, not clobbered.
+id: author-kcp-playbook
+path: author-kcp-playbook.yaml
+kind: skill
+intent: Assemble a governed kind:playbook manifest from a compact spec using kcp-forge author-playbook — one kind:skill unit per step plus the composing playbook, carrying the §3.13 authority model. Use when a procedure spans multiple units with different authority requirements (read, then propose, then commit) and prose steps in a single skill would under-govern it.
+scope: project
+audience:
+- agent
+triggers:
+- author a playbook
+- assemble a kcp playbook
+- author-playbook
+load_eligible: true
+action_scope:
+  tools:
+  - Bash
+content_hash:
+  algorithm: sha256
+  value: 99a6caf4a7a1b99f2353892f16352e29afc41efe3d8e37322ce6298b27061610
+x-forge:
+  forge_version: 0.4.1
+  kcp_version: '0.32'
+  source: author-kcp-playbook.yaml
+# forge-integrity: sha256:34ef76b6c7b75e8a2e42c88c4e0477346e3697cca8244aa73ab9b48f3c3a1b91

@@ -1,0 +1,66 @@
+name: author-kcp-playbook
+description: Assemble a governed kind:playbook manifest from a compact spec using kcp-forge author-playbook — one kind:skill unit per step plus the composing playbook, carrying the §3.13 authority model. Use when a procedure spans multiple units with different authority requirements (read, then propose, then commit) and prose steps in a single skill would under-govern it.
+tools:
+  - Bash
+trigger_phrases:
+  - "author a playbook"
+  - "assemble a kcp playbook"
+  - "author-playbook"
+instructions: |
+  ## When this is the right tool
+
+  `convert` derives one governed `kind: skill` unit from one skill file. `author-playbook`
+  is its counterpart for `kind: playbook` (SPEC §4.3b): point it at a spec — any YAML file
+  declaring a `steps:` list — and it assembles the whole manifest. Reach for it only when
+  steps span units with different authority requirements; if every step fits inside one
+  procedure's `action_scope`, that's a plain skill, not a playbook (see kcp-skill PROFILE.md
+  §5).
+
+  ## The spec shape
+
+  ```yaml
+  name: promote-compliance-record
+  description: ...
+  authority_level: prepare        # playbook-level ceiling
+  grant_ceiling:
+    sources:
+      - id: org-risk-policy
+        authority_level: prepare
+    mandatory_sources: [org-risk-policy]
+  steps:
+    - id: gather
+      uses: gather-evidence        # must be a `uses` reference — inline `action` steps
+      intent: ...                  # are refused: "an eligible playbook admits only
+      authority_level: explain     # `uses` steps"
+      tools: [kcp-read]
+    - id: prepare-change
+      uses: prepare-status-change
+      depends_on: [gather]         # cyclic depends_on graphs are refused
+      authority_level: prepare
+      tools: [git]
+      paths: ["records/**"]
+  ```
+
+  ## Running it
+
+  ```bash
+  kcp-forge author-playbook <spec-dir-or-file>          # dry-run: shows what would write
+  kcp-forge author-playbook --apply <spec-dir-or-file>  # writes <name>.playbook.kcp.yaml
+  ```
+
+  ## Rules that bite
+
+  - `--apply` is required to write; without it you only see the diff. Same dry-run
+    default as `convert`.
+  - The assembled manifest is validated against the **real** vendored KCP schema
+    (`schema/knowledge-schema.json`) before it is written — a non-conforming playbook is
+    refused, never emitted. If it refuses, the spec doesn't conform; read the printed
+    finding, don't retry with `--apply` hoping it clears.
+  - A `.playbook.kcp.yaml` that was hand-edited is refused, not clobbered — move the edit
+    into the spec and re-run.
+  - `empty-steps`: a playbook needs at least one step.
+  - `cyclic-steps`: check `depends_on` for a loop.
+  - Every step must be `uses:` (a reference to another unit) — inline `action:` steps
+    make the playbook ineligible.
+  - The playbook-level `action_scope.deny` (RFC-0030 / KCP 0.32) composes with each used
+    skill's own `deny` by per-dimension union — a broader deny anywhere in the chain wins.
